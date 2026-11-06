@@ -1,11 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import CharacterCanvas, { type BuddyState } from '../components/CharacterCanvas'
 import SpeechBubble from '../components/SpeechBubble'
-import { useSpeech } from '../hooks/useSpeech'
+import { useTTS } from '../hooks/useTTS'
+import { useVoice, type VoiceError } from '../hooks/useVoice'
 import { replyTo } from '../services/brain'
 
 const CHAR_SIZE = 240
 const NAP_AFTER_MS = 90_000
+
+const VOICE_ERRORS: Record<Exclude<VoiceError, null>, string> = {
+  permission: 'I need microphone permission before I can listen.',
+  'no-mic': "I couldn't find a microphone.",
+  'too-short': "That was too quick — hold on a moment longer next time.",
+  failed: "I couldn't make out the words. Try again?",
+  busy: "I'm already working on it.",
+}
 
 export default function Buddy() {
   const [state, setState] = useState<BuddyState>('idle')
@@ -13,7 +22,6 @@ export default function Buddy() {
   const [bubble, setBubble] = useState('')
   const [amplitude, setAmplitude] = useState(0)
   const [muted, setMuted] = useState(false)
-  const [voiceIssue, setVoiceIssue] = useState<string | null>(null)
 
   const charRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<{
@@ -25,32 +33,8 @@ export default function Buddy() {
   } | null>(null)
   const napTimer = useRef<number | undefined>(undefined)
   const ampTimer = useRef<number | undefined>(undefined)
-  const listeningRef = useRef(false)
 
-  const handleFinal = useCallback(
-    async (text: string) => {
-      if (!text) return
-      setState('thinking')
-      const reply = await replyTo(text)
-      // Small beat so "thinking" reads as intentional, not lag.
-      window.setTimeout(() => say(reply), 450)
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
-  )
-
-  const { listening, caption, setCaption, unavailable, start, stop, speak } = useSpeech({
-    onFinal: handleFinal,
-    onError: (reason) => {
-      setState('surprised')
-      setVoiceIssue(
-        reason === 'not-allowed' || reason === 'service-not-allowed'
-          ? "I need microphone permission before I can listen."
-          : "My mic can't reach a speech service in this build. You can type to me in the panel for now.",
-      )
-    },
-  })
-  listeningRef.current = listening
+  const tts = useTTS()
 
   const stopAmplitude = useCallback(() => {
     if (ampTimer.current) window.clearInterval(ampTimer.current)
@@ -67,71 +51,75 @@ export default function Buddy() {
       ampTimer.current = window.setInterval(() => {
         setAmplitude(0.25 + Math.random() * 0.6)
       }, 90)
-      speak(text, () => {
+      tts.speak(text, () => {
         stopAmplitude()
         setState('idle')
         setBubble('')
       })
     },
-    [speak, stopAmplitude],
+    [tts, stopAmplitude],
   )
 
-  /* Speak a friendly line whenever the mic fails. */
-  useEffect(() => {
-    if (!voiceIssue) return
-    const timer = window.setTimeout(() => {
-      say(voiceIssue)
-      setVoiceIssue(null)
-    }, 250)
-    return () => window.clearTimeout(timer)
-  }, [voiceIssue, say])
+  const handleFinal = useCallback(
+    async (text: string) => {
+      if (!text) return
+      setState('thinking')
+      const reply = await replyTo(text)
+      window.setTimeout(() => say(reply), 300)
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  )
 
-  /* Wake on any activity and schedule a nap when idle. */
+  const voice = useVoice({ onTranscript: handleFinal })
+  const voiceRef = useRef(voice)
+  voiceRef.current = voice
+
+  /* Drive the character from the voice loop. */
+  useEffect(() => {
+    if (voice.recording) setState('listening')
+    else if (voice.transcribing) setState('thinking')
+    else if (!bubble) setState((prev) => (prev === 'listening' || prev === 'thinking' ? 'idle' : prev))
+  }, [voice.recording, voice.transcribing, bubble])
+
+  /* Speak a friendly line when something goes wrong. */
+  useEffect(() => {
+    if (!voice.error) return
+    setState('surprised')
+    say(VOICE_ERRORS[voice.error])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voice.error])
+
   const noteActivity = useCallback(() => {
     if (napTimer.current) window.clearTimeout(napTimer.current)
     setState((prev) => (prev === 'sleepy' ? 'idle' : prev))
     napTimer.current = window.setTimeout(() => {
-      if (!listeningRef.current) setState('sleepy')
+      if (!voiceRef.current.recording) setState('sleepy')
     }, NAP_AFTER_MS)
   }, [])
 
-  /* Greeting + global hotkey / tray events from the main process. */
+  /* Greeting + global hotkey / tray events. */
   useEffect(() => {
     const offPtt = window.buddy.on('ptt:toggle', () => {
-      if (listeningRef.current) {
-        stop()
-        setState('idle')
-      } else if (start()) {
-        noteActivity()
-        setState('listening')
-        setCaption('')
-      } else {
-        setState('surprised')
-        say(
-          unavailable
-            ? "My mic isn't working in this build. Type to me in the panel instead."
-            : "My ears aren't working right now.",
-        )
-      }
+      const current = voiceRef.current
+      if (current.transcribing) return
+      noteActivity()
+      void current.toggle()
     })
 
     const offMuted = window.buddy.on('mic-muted', (value) => {
       setMuted(Boolean(value))
-      if (value && listeningRef.current) {
-        stop()
-        setState('idle')
+      if (value) {
+        const current = voiceRef.current
+        if (current.recording) void current.stop()
       }
     })
 
     window.buddy.loadMemory().then((memory) => {
-      if (!memory?.lastSeen) {
-        window.setTimeout(
-          () => say("Hi, I'm momo! Click me to say hello, or press Ctrl+Space to talk."),
-          700,
-        )
-      } else {
-        window.setTimeout(() => say('Oh, you’re back. Good.'), 700)
-      }
+      const greeting = memory?.lastSeen
+        ? 'Oh, you’re back. Good.'
+        : "Hi, I'm momo! Press Ctrl+Space and talk to me."
+      window.setTimeout(() => say(greeting), 700)
     })
 
     noteActivity()
@@ -143,17 +131,6 @@ export default function Buddy() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-
-  /* Listening state follows the microphone. */
-  useEffect(() => {
-    if (listening) {
-      setState('listening')
-      noteActivity()
-    } else if (state === 'listening') {
-      setState('idle')
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [listening])
 
   const onPointerDown = (event: React.PointerEvent) => {
     ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
@@ -170,11 +147,8 @@ export default function Buddy() {
   }
 
   const onPointerMove = (event: React.PointerEvent) => {
-    // Eye tracking
     const rect = charRef.current?.getBoundingClientRect()
-    if (rect) {
-      setCursor({ x: event.clientX - rect.left, y: event.clientY - rect.top })
-    }
+    if (rect) setCursor({ x: event.clientX - rect.left, y: event.clientY - rect.top })
     noteActivity()
 
     const drag = dragRef.current
@@ -195,7 +169,14 @@ export default function Buddy() {
     }
   }
 
-  const bubbleCaption = listening ? caption || 'listening…' : undefined
+  const bubbleText = voice.status || (voice.recording ? '…' : bubble)
+  const caption = voice.recording
+    ? 'listening…'
+    : voice.transcribing
+      ? 'working it out…'
+      : voice.transcript
+        ? `“${voice.transcript}”`
+        : undefined
 
   return (
     <div
@@ -204,18 +185,13 @@ export default function Buddy() {
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={() => (dragRef.current = null)}
-      title="Drag to move · click to open"
+      title="Drag to move · click to open · Ctrl+Space to talk"
     >
       <div className="buddy__bubble">
-        <SpeechBubble text={bubble || (listening ? '…' : '')} caption={bubbleCaption} />
+        <SpeechBubble text={bubbleText} caption={caption} holdMs={voice.recording || voice.status ? 0 : 6000} />
       </div>
       <div className="buddy__character" ref={charRef}>
-        <CharacterCanvas
-          state={state}
-          cursor={listening ? undefined : cursor}
-          amplitude={amplitude}
-          size={CHAR_SIZE}
-        />
+        <CharacterCanvas state={state} cursor={cursor} amplitude={amplitude} size={CHAR_SIZE} />
       </div>
     </div>
   )

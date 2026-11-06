@@ -31,6 +31,9 @@ const buddy = {
   // Skills
   runSkill: (skill: string, payload?: unknown) => ipcRenderer.invoke('skill:run', skill, payload),
 
+  // Speech-to-text (local Whisper in the main process)
+  transcribe: (audio: Float32Array) => ipcRenderer.invoke('voice:transcribe', audio),
+
   // Misc
   quit: () => ipcRenderer.invoke('app:quit'),
 
@@ -38,7 +41,9 @@ const buddy = {
   on: (channel: string, listener: (payload: unknown) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, payload: unknown) => listener(payload)
     ipcRenderer.on(channel, handler)
-    return () => ipcRenderer.removeListener(channel, handler)
+    return () => {
+      ipcRenderer.removeListener(channel, handler)
+    }
   },
 }
 

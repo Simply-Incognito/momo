@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { useMemory } from '../hooks/useMemory'
-import { useSpeech } from '../hooks/useSpeech'
+import { useVoice } from '../hooks/useVoice'
 import { replyTo } from '../services/brain'
 
 type Tab = 'chat' | 'memory' | 'settings'
@@ -21,8 +21,8 @@ export default function Panel() {
   const [busy, setBusy] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  const { listening, caption, start, stop } = useSpeech({
-    onFinal: (text) => send(text),
+  const voice = useVoice({
+    onTranscript: (text) => send(text),
   })
 
   const [apiKey, setApiKey] = useState('')
@@ -70,8 +70,7 @@ export default function Panel() {
   }
 
   const toggleListening = () => {
-    if (listening) stop()
-    else start()
+    void voice.toggle()
   }
 
   return (
@@ -130,8 +129,15 @@ export default function Panel() {
             )}
           </div>
 
-          {(listening || caption) && (
-            <div className="chat__caption">{listening ? caption || 'listening…' : caption}</div>
+          {(voice.recording || voice.transcribing || voice.status || voice.transcript) && (
+            <div className="chat__caption">
+              {voice.status ||
+                (voice.recording
+                  ? 'listening…'
+                  : voice.transcribing
+                    ? 'working it out…'
+                    : voice.transcript)}
+            </div>
           )}
 
           <form
@@ -143,11 +149,11 @@ export default function Panel() {
           >
             <button
               type="button"
-              className={`composer__mic ${listening ? 'is-live' : ''}`}
+              className={`composer__mic ${voice.recording ? 'is-live' : ''}`}
               onClick={toggleListening}
               title="Push to talk"
             >
-              {listening ? '■' : '●'}
+              {voice.recording ? '■' : '●'}
             </button>
             <input
               className="composer__input"

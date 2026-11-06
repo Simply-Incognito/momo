@@ -25,6 +25,7 @@
     "vite": "^8.3.6"
   },
   "dependencies": {
+    "@huggingface/transformers": "^4.3.2",
     "@pixi/unsafe-eval": "^7.4.3",
     "pixi.js": "^7.4.3"
   }

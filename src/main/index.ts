@@ -8,10 +8,12 @@ import {
   screen,
   safeStorage,
   globalShortcut,
+  session,
 } from 'electron'
 import { join } from 'node:path'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { handleSkill } from './skills'
+import { preloadWhisperModel, transcribeAudio } from './stt'
 
 const BUDDY_WIDTH = 280
 const BUDDY_HEIGHT = 320
@@ -400,6 +402,13 @@ ipcMain.handle('skill:run', async (_event, skill: string, payload: unknown) => {
   return handleSkill(skill, payload, { memory, saveMemory: (next) => { memory = next; writeJson(memoryPath, memory) } })
 })
 
+ipcMain.handle('voice:transcribe', async (event, audio: Float32Array) => {
+  const sender = event.sender
+  return transcribeAudio(audio, (update) => {
+    if (!sender.isDestroyed()) sender.send('voice:status', update)
+  })
+})
+
 ipcMain.handle('app:quit', () => {
   app.quit()
 })
@@ -416,12 +425,24 @@ if (!gotLock) {
   })
 
   app.whenReady().then(() => {
+    // The renderer records the mic with getUserMedia; grant only media access.
+    session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
+      callback(permission === 'media')
+    })
+    session.defaultSession.setPermissionCheckHandler((_wc, permission) => {
+      return permission === 'media'
+    })
+
     createBuddyWindow()
     createTray()
 
     if (!registerHotkey(settings.hotkey)) {
       console.warn(`Hotkey "${settings.hotkey}" is unavailable; pick another in settings.`)
     }
+
+    // Fetch the small local speech model in the background so the next voice
+    // command can use Whisper without making the user wait.
+    setTimeout(preloadWhisperModel, 4_000)
 
     app.on('activate', () => {
       if (!buddyWindow) createBuddyWindow()
