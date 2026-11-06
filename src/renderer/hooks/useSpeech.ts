@@ -1,236 +1,136 @@
-// useSpeech.ts
-// Custom hook for handling speech recognition and synthesis
-// Provides abstraction for Web Speech API with future Whisper/ElevenLabs support
+import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { useState, useEffect, useRef } from 'react'
+/**
+ * Speech I/O abstraction.
+ *
+ * Today it uses the browser SpeechRecognition / speechSynthesis APIs. The
+ * surface is intentionally small so a Whisper (STT) or ElevenLabs (TTS)
+ * provider can be dropped in later without touching the UI.
+ */
 
-type SpeechRecognitionResult = {
-  transcript: string
-  isFinal: boolean
+type Options = {
+  onFinal?: (text: string) => void
+  onError?: (reason: string) => void
 }
 
-type SpeechRecognitionStartOptions = {
-  language?: string
-  continuous?: boolean
-  interimResults?: boolean
+type SpeechRecognitionLike = {
+  continuous: boolean
+  interimResults: boolean
+  lang: string
+  start: () => void
+  stop: () => void
+  abort: () => void
+  onresult: ((event: any) => void) | null
+  onerror: ((event: any) => void) | null
+  onend: (() => void) | null
 }
 
-type TtsOptions = {
-  rate?: number
-  pitch?: number
-  volume?: number
-  voice?: SpeechSynthesisVoice
-}
-
-export class SpeechService {
-  private recognition: SpeechRecognition | null = null
-  private isListening = false
-  private wakeWord = 'Hey Buddy'
-  private hotkey = 'Ctrl+Space'
-  private utteranceQueue: SpeechSynthesisUtterance[] = []
-  private isSpeaking = false
-
-  constructor() {
-    this.initRecognition()
-  }
-
-  private initRecognition() {
-    // Check if Web Speech API is available
-    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-      const RecognitionClass = ('webkitSpeechRecognition' in window) 
-        ? window.SpeechRecognition 
-        : window.webkitSpeechRecognition
-      
-      this.recognition = new RecognitionClass()
-      this.recognition.continuous = true
-      this.recognition.interimResults = true
-      this.recognition.lang = 'en-US'
-
-      this.recognition.onresult = (event: SpeechRecognitionEvent) => {
-        const transcript = Array.from(event.results)
-          .map((res: SpeechRecognitionResult) => res[0].transcript)
-          .join('')
-
-        const interimTranscript = Array.from(event.results)
-          .map((res: SpeechRecognitionResult) => res[0].transcript)
-          .filter((t: string) => event.results[0][0].isFinal === false)
-          .join('')
-
-        this.onSpeechUpdate(transcript, interimTranscript)
-      }
-
-      this.recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-        console.error('Speech recognition error', event.error)
-        this.isListening = false
-      }
-
-      this.recognition.onend = () => {
-        if (this.isListening) {
-          // Restart recognition if still listening
-          try { this.recognition!.start() } catch (e) {}
-        }
-      }
-    }
-  }
-
-  private onSpeechUpdate(finalTranscript: string, interimTranscript: string) {
-    // Could emit to parent component or update state
-    // For now, just log
-    // console.log('Final:', finalTranscript, 'Interim:', interimTranscript)
-  }
-
-  startListening(wakeWord?: string, hotkey?: string): void {
-    if (!this.recognition) return
-    
-    this.wakeWord = wakeWord || this.wakeWord
-    this.hotkey = hotkey || this.hotkey
-    this.isListening = true
-    
-    try {
-      this.recognition.start()
-    } catch (e) {
-      console.error('Failed to start speech recognition', e)
-      this.isListening = false
-    }
-  }
-
-  stopListening(): void {
-    if (this.recognition && this.isListening) {
-      this.isListening = false
-      try {
-        this.recognition.stop()
-      } catch (e) {}
-    }
-  }
-
-  // Text-to-Speech
-  speak(text: string, options: TtsOptions = {}): void {
-    if (!('speechSynthesis' in window)) {
-      console.warn('Speech synthesis not available')
-      return
-    }
-
-    const utterance = new SpeechSynthesisUtterance(text)
-    
-    // Default settings
-    utterance.rate = options.rate || 1.0
-    utterance.pitch = options.pitch || 1.0
-    utterance.volume = options.volume || 0.8
-    
-    // Try to find a pleasant voice
-    const voices = window.speechSynthesis.getVoices()
-    const defaultVoice = voices.find(v => v.name.includes('Google') || v.name.includes('Samantha')) || voices[0]
-    utterance.voice = defaultVoice || options.voice
-
-    // Queue the utterance
-    window.speechSynthesis.cancel()
-    window.speechSynthesis.speak(utterance)
-    
-    this.isSpeaking = true
-    utterance.onend = () => { this.isSpeaking = false }
-    utterance.onerror = (e) => { 
-      console.error('TTS error', e) 
-      this.isSpeaking = false 
-    }
-  }
-
-  // Wake word detection
-  checkWakeWord(transcript: string): boolean {
-    const lower = transcript.toLowerCase().trim()
-    return lower.includes(this.wakeWord.toLowerCase())
-  }
-
-  // Hotkey detection
-  checkHotkey(event: KeyboardEvent): boolean {
-    const keys = this.hotkey.toLowerCase().split('+')
-    const ctrl = keys.includes('ctrl') || keys.includes('control')
-    const space = keys.includes('space')
-    
-    if (ctrl && space) {
-      return event.ctrlKey && event.key === ' '
-    }
-    
-    return false
-  }
-
-  get isListeningState(): boolean {
-    return this.isListening
-  }
-
-  getWakeWord(): string {
-    return this.wakeWord
-  }
-
-  getHotkey(): string {
-    return this.hotkey
-  }
-}
-
-// Hook for using speech service
-export function useSpeech() {
-  const service = new SpeechService()
-  const [isListening, setIsListening] = useState(false)
-  const [transcript, setTranscript] = useState('')
+export function useSpeech({ onFinal, onError }: Options = {}) {
+  const [listening, setListening] = useState(false)
   const [caption, setCaption] = useState('')
-  const [isSpeaking, setIsSpeaking] = useState(false)
+  const [supported, setSupported] = useState(false)
+  const [unavailable, setUnavailable] = useState(false)
+  const recognition = useRef<SpeechRecognitionLike | null>(null)
+  const onFinalRef = useRef(onFinal)
+  const onErrorRef = useRef(onError)
+  onFinalRef.current = onFinal
+  onErrorRef.current = onError
 
   useEffect(() => {
-    const handleResult = (event: SpeechRecognitionEvent) => {
-      const transcript = Array.from(event.results)
-        .map((res: any) => res[0].transcript)
-        .join('')
+    const Ctor =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!Ctor) return
 
-      const interimTranscript = Array.from(event.results)
-        .map((res: any) => res[0].transcript)
-        .filter((t: any) => event.results[0][0].isFinal === false)
-        .join('')
+    const rec: SpeechRecognitionLike = new Ctor()
+    rec.continuous = false
+    rec.interimResults = true
+    rec.lang = 'en-US'
 
-      setTranscript(interimTranscript)
-      
-      if (event.results[0][0].isFinal) {
-        setCaption(prev => {
-          const newCaption = transcript.trim()
-          return newCaption || prev
-        })
-        
-        // Check for wake word
-        if (service.checkWakeWord(transcript)) {
-          // Wake word detected - start conversation
-          setIsListening(false)
-          setTranscript('')
-        }
+    rec.onresult = (event: any) => {
+      let finalText = ''
+      let interim = ''
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const result = event.results[i]
+        if (result.isFinal) finalText += result[0].transcript
+        else interim += result[0].transcript
+      }
+      if (interim) setCaption(interim.trim())
+      if (finalText) {
+        const text = finalText.trim()
+        setCaption(text)
+        onFinalRef.current?.(text)
       }
     }
 
-    // Keyboard event for hotkey
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (service.checkHotkey(event)) {
-        event.preventDefault()
-        if (isListening) {
-          service.stopListening()
-          setIsListening(false)
-        } else {
-          service.startListening()
-          setIsListening(true)
-        }
+    rec.onerror = (event: any) => {
+      // 'network' is common in Electron: Chromium ships without Google's
+      // speech backend. We remember that so the UI can offer text input
+      // instead of pretending the mic works.
+      const reason = event?.error ?? 'unknown'
+      console.warn('[speech] recognition error:', reason)
+      if (reason === 'network' || reason === 'not-allowed' || reason === 'service-not-allowed') {
+        setUnavailable(true)
       }
+      setListening(false)
+      onErrorRef.current?.(reason)
     }
 
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isListening, service])
+    rec.onend = () => setListening(false)
+    recognition.current = rec
+    setSupported(true)
 
-  return {
-    isListening,
-    transcript,
-    caption,
-    isSpeaking,
-    startListening: () => { service.startListening(); setIsListening(true) },
-    stopListening: () => { service.stopListening(); setIsListening(false) },
-    speak: (text: string) => { service.speak(text); setIsSpeaking(true) },
-    wakeWord: service.getWakeWord(),
-    hotkey: service.getHotkey(),
-  }
+    return () => {
+      try {
+        rec.abort()
+      } catch {
+        /* ignore */
+      }
+      recognition.current = null
+    }
+  }, [])
+
+  const start = useCallback(() => {
+    const rec = recognition.current
+    if (!rec || unavailable) return false
+    try {
+      rec.start()
+      setListening(true)
+      return true
+    } catch {
+      return false
+    }
+  }, [unavailable])
+
+  const stop = useCallback(() => {
+    try {
+      recognition.current?.stop()
+    } catch {
+      /* ignore */
+    }
+    setListening(false)
+  }, [])
+
+  const speak = useCallback((text: string, onEnd?: () => void) => {
+    if (!('speechSynthesis' in window)) {
+      onEnd?.()
+      return
+    }
+    const utterance = new SpeechSynthesisUtterance(text)
+    utterance.rate = 1.02
+    utterance.pitch = 1.12
+    utterance.volume = 0.9
+
+    const voices = window.speechSynthesis.getVoices()
+    const preferred =
+      voices.find((v) => /Samantha|Aria|Zira|Google US English|Microsoft Aria/i.test(v.name)) ??
+      voices.find((v) => v.lang?.startsWith('en'))
+    if (preferred) utterance.voice = preferred
+
+    utterance.onend = () => onEnd?.()
+    utterance.onerror = () => onEnd?.()
+    window.speechSynthesis.cancel()
+    window.speechSynthesis.speak(utterance)
+  }, [])
+
+  return { listening, caption, setCaption, supported, unavailable, start, stop, speak }
 }
-
-export default SpeechService

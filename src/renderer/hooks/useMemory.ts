@@ -1,112 +1,49 @@
-// useMemory.ts
-// Hook for local memory storage using IndexedDB
-// Persists data across sessions
+import { useCallback, useEffect, useState } from 'react'
 
-import { useState, useEffect } from 'react'
-
-type Memory = {
+export type Memory = {
   name: string
-  preferences: Record<string, any>
+  preferences: Record<string, unknown>
   moodHistory: Array<{ mood: string; timestamp: number }>
+  notes: Array<{ text: string; timestamp: number }>
   projects: string[]
-  lastSeen: number
+  lastSeen: number | null
 }
 
-const STORAGE_KEY = 'buddy-memory'
+const emptyMemory = (): Memory => ({
+  name: '',
+  preferences: {},
+  moodHistory: [],
+  notes: [],
+  projects: [],
+  lastSeen: null,
+})
 
 export function useMemory() {
-  const [memory, setMemory] = useState<Memory>(() => {
-    // Check for persisted memory
-    if (typeof window !== 'undefined') {
-      try {
-        const stored = localStorage.getItem(STORAGE_KEY)
-        if (stored) {
-          return JSON.parse(stored)
-        }
-      } catch (e) {
-        console.error('Failed to load memory', e)
-      }
-    }
-    return {
-      name: '',
-      preferences: {},
-      moodHistory: [],
-      projects: [],
-      lastSeen: Date.now(),
-    }
-  })
+  const [memory, setMemory] = useState<Memory | null>(null)
 
   useEffect(() => {
-    // Persist to localStorage
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(memory))
-    } catch (e) {
-      console.error('Failed to save memory', e)
+    let cancelled = false
+    window.buddy.loadMemory().then((loaded) => {
+      if (!cancelled) setMemory({ ...emptyMemory(), ...(loaded as Memory) })
+    })
+    return () => {
+      cancelled = true
     }
+  }, [])
+
+  const update = useCallback((patch: Partial<Memory>) => {
+    setMemory((prev) => (prev ? { ...prev, ...patch } : prev))
+  }, [])
+
+  const save = useCallback(async () => {
+    if (!memory) return
+    await window.buddy.saveMemory({ ...memory, lastSeen: Date.now() })
   }, [memory])
 
-  // Update last seen timestamp
-  const updateLastSeen = () => {
-    setMemory(prev => ({ ...prev, lastSeen: Date.now() }))
-  }
+  const clear = useCallback(async () => {
+    const fresh = await window.buddy.clearMemory()
+    setMemory({ ...emptyMemory(), ...(fresh as Memory) })
+  }, [])
 
-  // Add mood to history
-  const addMood = (mood: string) => {
-    setMemory(prev => ({
-      ...prev,
-      moodHistory: [
-        ...prev.moodHistory,
-        { mood, timestamp: Date.now() },
-      ].slice(-20), // Keep last 20 mood entries
-    }))
-    updateLastSeen()
-  }
-
-  // Set name
-  const setName = (name: string) => {
-    setMemory(prev => ({ ...prev, name }))
-    updateLastSeen()
-  }
-
-  // Set preference
-  const setPreference = (key: string, value: any) => {
-    setMemory(prev => ({ ...prev, preferences: { ...prev.preferences, [key]: value } }))
-    updateLastSeen()
-  }
-
-  // Get preference
-  const getPreference = (key: string, defaultValue: any = null) => {
-    return memory.preferences[key] || defaultValue
-  }
-
-  // Add project
-  const addProject = (project: string) => {
-    setMemory(prev => ({
-      ...prev,
-      projects: [...new Set([...prev.projects, project])],
-    }))
-    updateLastSeen()
-  }
-
-  // Remove project
-  const removeProject = (project: string) => {
-    setMemory(prev => ({
-      ...prev,
-      projects: prev.projects.filter(p => p !== project),
-    }))
-    updateLastSeen()
-  }
-
-  return {
-    memory,
-    setName,
-    setPreference,
-    getPreference,
-    addMood,
-    addProject,
-    removeProject,
-    updateLastSeen,
-  }
+  return { memory, update, save, clear }
 }
-
-export default useMemory

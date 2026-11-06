@@ -1,165 +1,143 @@
 # momo
 
-**Buddy** — a cute, interactive AI character that lives on your desktop, talks to you by voice, and remembers you.
+**Buddy** — a small desktop AI companion that floats on your screen, talks, and remembers you.
 
-## Quick Start
+> `momo` is the project name; the character is called **Buddy**. Rename either freely — the persona name lives in one or two places (see “Renaming”).
 
-1. **Install dependencies:**
-   ```bash
-   npm install
-   ```
+---
 
-2. **Get an Anthropic API key:**
-   - Sign up at: https://console.anthropic.com/
-   - Get your API key from the console
-   - Add it via: `npm run setup-api` or through the settings panel
-
-3. **Run Momo:**
-   ```bash
-   npm run dev
-   ```
-
-## Features
-
-### Core Experience
-- **Floating character**: A cute blob spirit that lives in a transparent, frameless window always on top
-- **Voice conversation**: Wake word ("Hey Buddy") or push-to-talk (Ctrl+Space) to talk
-- **Memory**: Remembers your name, preferences, and mood across sessions
-- **Animation**: Smooth 60fps animations with spring physics
-
-### Character States
-- **Idle**: Breathing, blinking, looking around, occasional wander
-- **Listening**: Perks up, eyes widen, subtle glow
-- **Thinking**: Gentle swirl animation
-- **Talking**: Mouth synced to audio amplitude
-- **Happy, Sad, Surprised, Sleepy**: Distinct expressions
-
-### Skills (coming in milestones)
-- Open apps and websites
-- Set timers and reminders
-- Tell time/weather
-- Read clipboard aloud
-- Screen awareness (opt-in)
-
-### UI
-- Glassmorphism speech bubbles
-- Dark/light themes with accent color customization
-- System tray icon with show/hide, mute, settings, quit
-- Settings panel for voice, personality, and character customization
-
-## Project Structure
-
-```
-momo/
-├── electron/           # Electron main process
-│   ├── main.ts         # Main window, tray, IPC handlers
-│   └── preload.js      # Bridge between renderer and Electron APIs
-├── src/
-│   ├── renderer/
-│   │   ├── index.html  # HTML entry point
-│   │   ├── main.tsx    # React root + reduced motion handling
-│   │   ├── components/
-│   │   │   ├── App.tsx      # Main application component
-│   │   │   ├── CharacterCanvas.tsx  # PixiJS character animation
-│   │   │   └── SpeechBubble.tsx     # Glassmorphism speech bubble
-│   │   ├── hooks/
-│   │   │   ├── useMemory.ts   # IndexedDB/localStorage persistence
-│   │   │   └── useSpeech.ts   # Web Speech API abstraction
-│   │   └── styles/
-│   │       └── main.css       # Glassmorphism and animation styles
-│   └── services/
-│       └── AnimationService.ts # Character state management
-├── package.json          # Dependencies and scripts
-└── tsconfig.json        # TypeScript configuration
-```
-
-## Technology Stack
-
-- **Electron** v30 - Desktop shell with transparent, frameless windows
-- **React** v19 + TypeScript - UI framework
-- **PixiJS** - 60fps canvas/WebGL animation for the character
-- **Web Speech API** - Speech recognition (with abstraction for Whisper later)
-- **SpeechSynthesis API** - Text-to-speech (with abstraction for ElevenLabs later)
-- **Anthropic Claude API** - LLM brain with streaming responses
-- **IndexedDB/localStorage** - Local memory persistence
-
-## Milestones
-
-### Milestone 1: Transparent Window + Animated Character ✓
-- Frameless, always-on-top, transparent window
-- Cute blob character with expressive animations
-- Drag to position, position remembered between launches
-
-### Milestone 2: Voice Loop
-- Wake word detection ("Hey Buddy")
-- Push-to-talk via Ctrl+Space (configurable)
-- Text-to-speech responses
-- Character animates through states (idle ↔ listening ↔ thinking ↔ talking)
-
-### Milestone 3: Memory + Personality
-- Persistent memory of name, preferences, mood patterns
-- Character references memory naturally in conversation
-- Personality sliders (playful/serious, talkative/quiet)
-
-### Milestone 4: Skills
-- Open apps and websites
-- Set timers and reminders
-- Time/weather queries
-- Clipboard reading
-- Screen awareness (opt-in with indicator)
-
-### Milestone 5: Polish
-- System tray integration
-- Full settings panel
-- Theme customization
-- Break reminders and proactive moments
-- Easy off/on toggles for all proactive features
-
-## Getting an API Key
-
-1. Sign up at https://console.anthropic.com/
-2. Generate an API key
-3. Add it through the settings panel in the app, or run:
-   ```bash
-   npm run setup-api
-   ```
-   (This will create a config file with your key stored securely)
-
-## Development
+## Quick start
 
 ```bash
-# Install dependencies
 npm install
-
-# Run in development mode
-npm run dev
-
-# Build for production
-# (Electron will package the app)
+npm run dev      # Electron + Vite with hot reload
 ```
 
-## Privacy & Security
+Other scripts:
 
-- **Audio processing**: Only begins after wake word or hotkey press
-- **Memory**: Stored locally in user data directory
-- **API key**: Stored in encrypted local storage, never hardcoded
-- **Screen awareness**: Opt-in only, with visible indicator when active
-- **Delete memory**: Use the "View Full Memory" button in settings to clear all stored data
+```bash
+npm run build      # production build → out/
+npm start          # preview the production build
+npm run typecheck  # tsc --noEmit
+```
 
-## Character Design
+On first run a pink blob spirit appears near the bottom-right of your screen. Drag it anywhere — the position is remembered. Click it to open the panel.
 
-The default character is **"Puff"** - a cute blob spirit creature with:
-- Big expressive eyes that change shape based on emotion
-- Soft pastel pink color scheme
-- Breathing rhythm when idle
-- Wanders slightly when you're active
-- Reacts to cursor position
-- Mood-based color shifts (listening, thinking, talking, etc.)
+---
 
-Other concepts considered:
-- **Spark**: A tiny electric sprite with glowing antennae
-- **Nimbus**: A gentle cloud creature with rosy cheeks
+## What works today
 
-## License
+| Area | Status |
+|---|---|
+| Transparent, frameless, always-on-top window | ✅ |
+| Drag to move, position persists between launches | ✅ |
+| PixiJS character with 8 states (idle, listening, thinking, talking, happy, sad, surprised, sleepy) | ✅ |
+| Breathing, blinking, eye-tracking, mood color shifts | ✅ |
+| Click character → glass panel (Chat / Memory / Settings) | ✅ |
+| Dark/light theme | ✅ |
+| System tray (show/hide, panel, mute, quit) | ✅ |
+| Global push-to-talk hotkey (default `Ctrl+Space`) | ✅ |
+| Local memory (name, notes, mood, preferences) | ✅ |
+| Local desktop skills: time, date, open site/app, clipboard read, notes, timer | ✅ |
+| Anthropic Claude brain | ⛔ next milestone |
+| Wake word ("Hey momo") | ⛔ next milestone |
+| Speech-to-text | ⚠️ see limitations |
+| Screen awareness | ⛔ not built |
 
-MIT - feel free to modify and extend!
+### Try it
+
+1. Click Buddy → **Chat** → type `what time is it` → it replies with the real time.
+2. Say/type `take a note: buy milk` → check the **Memory** tab.
+3. Press `Ctrl+Space` to toggle push-to-talk.
+4. Tray icon → show/hide/quit.
+
+---
+
+## Project structure
+
+```
+src/
+├── main/                 # Electron main process
+│   ├── index.ts          # windows, tray, hotkey, IPC, persistence
+│   └── skills.ts         # local desktop skills (add new ones here)
+├── preload/
+│   └── index.ts          # contextBridge API exposed as window.buddy
+└── renderer/             # React UI (two views in one bundle)
+    ├── index.html
+    ├── main.tsx          # routes ?view=buddy | ?view=panel
+    ├── buddy/Buddy.tsx   # the floating character window
+    ├── panel/Panel.tsx   # chat / memory / settings panel
+    ├── components/
+    │   ├── CharacterCanvas.tsx  # PixiJS vector character + animation
+    │   └── SpeechBubble.tsx     # glass speech bubble
+    ├── hooks/
+    │   ├── useSpeech.ts  # STT/TTS abstraction (swap providers here)
+    │   └── useMemory.ts  # memory load/save via IPC
+    └── services/
+        └── brain.ts      # conversation layer (Claude goes here)
+electron.vite.config.ts
+```
+
+Two windows, one renderer bundle: the buddy window is 280×320 and transparent; the panel is a separate 400×540 frameless window opened on click.
+
+---
+
+## How it was built
+
+- **Electron + TypeScript + React**, bundled by **electron-vite** (Vite for the renderer, esbuild for main/preload).
+- **PixiJS** draws the character entirely with vector `Graphics` — no sprite sheets. This keeps it crisp at any DPI, lets mood colors blend smoothly, and costs almost nothing while idle.
+- **CSP-safe**: the renderer forbids `eval`; `@pixi/unsafe-eval` provides Pixi's non-eval shader path.
+- **Security**: `contextIsolation: true`, `nodeIntegration: false`, and a single small `window.buddy` bridge. The API key is encrypted with Electron `safeStorage`.
+
+---
+
+## API key
+
+The Claude brain is not wired up yet. When it is, the key will be stored via `safeStorage` and read only in the main process.
+
+To prepare one now:
+
+1. Create a key at <https://console.anthropic.com/>.
+2. Open Buddy's panel → **Settings** → paste it into **Anthropic API key** → **Save key**.
+
+It is written encrypted to the app's `userData` folder and is never placed in source or sent to the renderer after saving.
+
+---
+
+## Known limitations (being honest)
+
+- **Speech-to-text does not work in Electron yet.** The Web Speech API in Electron reports `network` errors because Chromium has no Google speech backend. The UI detects this and tells you to type instead. Fixing it means adding a Whisper-based provider behind `useSpeech` (local `whisper.cpp` or an API).
+- **Wake word is not active.** Only push-to-talk is wired.
+- **No Claude yet.** `src/renderer/services/brain.ts` is a small local stub covering greetings and skills.
+- **macOS/Linux** are untested; window/tray code is cross-platform but only Windows has been verified.
+- **Tray icon** is generated at runtime (no binary asset).
+
+---
+
+## Privacy
+
+- The microphone is only activated by explicit action (hotkey or panel button).
+- Memory is stored locally in `%APPDATA%/momo/memory.json` (or the platform equivalent) and can be fully deleted from the Memory tab.
+- Window position and settings stay in the same local folder.
+- No analytics, no network calls yet (the only future one will be the Claude API).
+
+---
+
+## Roadmap
+
+- [x] Transparent window + animated character
+- [x] Draggable + position persistence
+- [x] Panel, themes, tray, hotkey
+- [x] Local memory + local skills
+- [ ] Streaming Claude conversation (main process, SSE)
+- [ ] Whisper STT provider + wake word
+- [ ] Voice-synced mouth amplitude
+- [ ] Screen awareness (opt-in, visible indicator)
+- [ ] Proactive moments (break reminder, good morning)
+- [ ] Packaging (electron-builder) for Windows/macOS/Linux
+
+---
+
+## Renaming
+
+Search for `momo` and `Buddy` in `src/`. The persona name appears in the main-process strings (`src/main/index.ts`), `Buddy.tsx` greetings, and `README.md`. The product name is in `package.json`.
