@@ -1,0 +1,287 @@
+/* Main stylesheet for Buddy UI */
+
+/* Glassmorphism base variables */
+:root {
+  --accent-color: #FF6B6B;
+  --accent-dark: #FF5252;
+  --bg-light: #F8F9FA;
+  --bg-dark: #2C3E50;
+  --text-light: #2C3E50;
+  --text-dark: #ECF0F1;
+  --muted-light: #7F8C8D;
+  --muted-dark: #AAA;
+  --transition-fast: 0.2s ease;
+  --transition-slow: 0.5s ease;
+}
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --transition-fast: 0s;
+    --transition-slow: 0s;
+  }
+}
+
+/* Bubble container */
+.bubble-container {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: none;
+  z-index: 1000;
+}
+
+/* Speech bubble */
+.speech-bubble {
+  background: var(--bg-light);
+  color: var(--text-light);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 20px;
+  padding: 12px 20px;
+  max-width: 240px;
+  margin: 8px 0;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+  transition: var(--transition-fast);
+  opacity: 0;
+  transform: translateY(-8px);
+  animation: bubbleIn var(--transition-fast) ease-out forwards;
+}
+
+@keyframes bubbleIn {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Reduced motion animation */
+@media (prefers-reduced-motion: reduce) {
+  .speech-bubble {
+    animation: none;
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Dark theme */
+body.dark .speech-bubble {
+  --bg-light: rgba(44, 62, 80, 0.8);
+  --text-light: #ECF0F1;
+  --muted-light: #AAA;
+}
+
+/* Accent color override */
+.speech-bubble.accent-primary {
+  border-color: var(--accent-color);
+}
+
+/* Tray icon styles */
+.tray-icon {
+  width: 20px;
+  height: 20px;
+}
+
+/* Panel styles */
+.settings-panel {
+  background: var(--bg-light);
+  color: var(--text-light);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  padding: 20px;
+  max-width: 360px;
+  width: 100%;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+  transition: var(--transition-fast);
+}
+
+body.dark .settings-panel {
+  --bg-light: rgba(44, 62, 80, 0.95);
+}
+
+/* Input fields */
+.settings-input {
+  width: 100%;
+  padding: 8px 12px;
+  margin: 8px 0;
+  border: 1px solid var(--muted-light);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-light);
+  font-size: 14px;
+  transition: var(--transition-fast);
+}
+
+body.dark .settings-input {
+  border-color: var(--muted-dark);
+  color: var(--text-dark);
+}
+
+.settings-input:focus {
+  outline: none;
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 2px rgba(255, 107, 107, 0.1);
+}
+
+/* Button styles */
+.settings-button {
+  width: 100%;
+  padding: 10px;
+  margin: 6px 0;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition-fast);
+  background: var(--accent-color);
+  color: white;
+}
+
+.settings-button:hover {
+  background: var(--accent-dark);
+}
+
+.settings-button:disabled {
+  background: var(--muted-light);
+  cursor: not-allowed;
+}
+
+/* Theme toggle */
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--muted-light);
+  border-radius: 20px;
+  font-size: 12px;
+  cursor: pointer;
+  background: transparent;
+  color: var(--text-light);
+}
+
+body.dark .theme-toggle {
+  border-color: var(--muted-dark);
+  color: var(--text-dark);
+}
+
+/* Hotkey display */
+.hotkey-display {
+  float: right;
+  font-size: 11px;
+  color: var(--muted-light);
+  background: transparent;
+  border: none;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+/* Memory viewer */
+.memory-entry {
+  padding: 8px 12px;
+  margin: 4px 0;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.05);
+  font-size: 13px;
+  transition: var(--transition-fast);
+}
+
+body.dark .memory-entry {
+  background: rgba(44, 62, 80, 0.3);
+}
+
+.memory-entry:hover {
+  background: rgba(255,107,107,0.1);
+}
+
+/* Status indicator */
+.status-indicator {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #888;
+  animation: pulse var(--transition-slow) ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.8); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status-indicator {
+    animation: none;
+  }
+}
+
+/* Welcome screen */
+.welcome-screen {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-light);
+  color: var(--text-light);
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  transition: var(--transition-fast);
+}
+
+body.dark .welcome-screen {
+  --bg-light: var(--bg-dark);
+  --text-light: var(--text-dark);
+}
+
+.welcome-screen h1 {
+  font-size: 24px;
+  margin-bottom: 12px;
+}
+
+.welcome-screen p {
+  font-size: 14px;
+  color: var(--muted-light);
+  margin-bottom: 24px;
+}
+
+.welcome-button {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 25px;
+  background: var(--accent-color);
+  color: white;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.welcome-button:hover {
+  background: var(--accent-dark);
+}
+
+/* Character canvas container */
+.character-container {
+  position: fixed;
+  width: 200px;
+  height: 200px;
+  pointer-events: auto;
+  z-index: 999;
+}
+
+/* Reduced motion for character animation */
+@media (prefers-reduced-motion: reduce) {
+  .character-container * {
+    animation-duration: 0s !important;
+    transition-duration: 0s !important;
+  }
+}
