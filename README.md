@@ -14,7 +14,7 @@
    - Get your API key from the console
    - Add it via: `npm run setup-api` or through the settings panel
 
-3. **Run Buddy:**
+3. **Run Momo:**
    ```bash
    npm run dev
    ```
